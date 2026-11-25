@@ -20,6 +20,10 @@ const playLabel = document.querySelector('#play-label');
 const helpDialog = document.querySelector('#help-dialog');
 const resolverUrl = window.REELFLOW_CONFIG?.resolverUrl?.trim() || '';
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
 let queue = readQueue();
 let activeIndex = queue.length ? 0 : -1;
 let autoplayEnabled = true;
