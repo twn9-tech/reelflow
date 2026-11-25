@@ -42,7 +42,7 @@ function isFacebookUrl(value) {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     const isShortLink = host === 'fb.watch' || host === 'www.fb.watch';
-    return ['http:', 'https:'].includes(url.protocol) && supportedHosts.includes(host) && (isShortLink || /(?:reel|reels|watch|share|videos|video\.php)/i.test(url.pathname));
+    return ['http:', 'https:'].includes(url.protocol) && supportedHosts.includes(host) && (isShortLink || /(?:reel|reels|watch|videos|video\.php)/i.test(url.pathname));
   } catch {
     return false;
   }
@@ -103,57 +103,10 @@ function renderQueue() {
   });
 }
 
-function ensureFacebookSdk() {
-  if (window.FB?.XFBML) return Promise.resolve(window.FB);
-  if (sdkPromise) return sdkPromise;
-
-  sdkPromise = new Promise((resolve, reject) => {
-    const previousInit = window.fbAsyncInit;
-    window.fbAsyncInit = () => {
-      previousInit?.();
-      if (window.FB) resolve(window.FB);
-      else reject(new Error('Facebook SDK tidak tersedia.'));
-    };
-
-    const existing = document.querySelector('#facebook-jssdk');
-    if (existing) return;
-
-    const script = document.createElement('script');
-    script.id = 'facebook-jssdk';
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = 'anonymous';
-    script.src = 'https://connect.facebook.net/id_ID/sdk.js';
-    script.onerror = () => reject(new Error('Facebook SDK gagal dimuat.'));
-    document.head.appendChild(script);
-  });
-
-  return sdkPromise;
-}
-
-function showEmbedFallback(url) {
-  player.innerHTML = `<div class="embed-fallback"><strong>Video tidak bisa di-embed</strong><span>Pastikan Reel bersifat publik dan pemiliknya mengizinkan embed.</span><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Buka Reel di Facebook ↗</a></div>`;
-  playerStatus.textContent = 'Facebook menolak embed untuk URL ini.';
-  playerLoading.hidden = true;
-}
-
 function renderFacebookEmbed(url, autoplay) {
-  player.innerHTML = `<div class="fb-xfbml-parse-ignore"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Buka Reel di Facebook</a></div>`;
-  player.className = 'fb-video';
-  player.dataset.href = url;
-  player.dataset.width = '500';
-  player.dataset.allowfullscreen = 'true';
-  player.dataset.showText = 'false';
-  player.dataset.autoplay = autoplay ? 'true' : 'false';
+  const params = new URLSearchParams({ href: url, show_text: 'false', autoplay: autoplay ? 'true' : 'false', width: '500' });
+  player.src = `https://www.facebook.com/plugins/video.php?${params.toString()}`;
   player.hidden = false;
-
-  ensureFacebookSdk().then((FB) => {
-    FB.XFBML.parse(player);
-    window.setTimeout(() => {
-      playerLoading.hidden = true;
-      playerStatus.textContent = 'Embed resmi siap. Jika kosong, Reel ini tidak publik atau tidak mengizinkan embed.';
-    }, 1800);
-  }).catch(() => showEmbedFallback(url));
 }
 
 function loadActive({ autoplay = true } = {}) {
@@ -189,6 +142,10 @@ function selectItem(index) {
 function addItem(value) {
   let url;
   try { url = cleanUrl(value); } catch { setFormMessage('Tautan tidak dapat dibaca.'); return; }
+  if (/\/share\/r\//i.test(url)) {
+    setFormMessage('Link share belum bisa di-embed. Buka link di Facebook, lalu salin URL akhir yang berbentuk /reel/…');
+    return;
+  }
   if (!isFacebookUrl(url)) {
     setFormMessage('Masukkan URL Reel Facebook publik dari facebook.com atau fb.watch.');
     return;
@@ -245,7 +202,7 @@ nextButton.addEventListener('click', () => move(1));
 playButton.addEventListener('click', () => {
   if (activeIndex < 0) return;
   if (autoplayEnabled) {
-    player.innerHTML = '';
+    player.src = 'about:blank';
     player.hidden = true;
     playerLoading.hidden = true;
     playerStatus.textContent = 'Embed dihentikan. Tekan tombol untuk mencoba lagi.';
@@ -254,6 +211,11 @@ playButton.addEventListener('click', () => {
   } else {
     loadActive({ autoplay: true });
   }
+});
+
+player.addEventListener('load', () => {
+  playerLoading.hidden = true;
+  playerStatus.textContent = 'Embed resmi siap. Tekan play jika autoplay diblokir browser.';
 });
 
 document.addEventListener('keydown', (event) => {
