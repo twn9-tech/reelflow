@@ -22,6 +22,7 @@ const helpDialog = document.querySelector('#help-dialog');
 let queue = readQueue();
 let activeIndex = queue.length ? 0 : -1;
 let autoplayEnabled = true;
+let sdkPromise;
 
 function readQueue() {
   try {
@@ -41,7 +42,7 @@ function isFacebookUrl(value) {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     const isShortLink = host === 'fb.watch' || host === 'www.fb.watch';
-    return ['http:', 'https:'].includes(url.protocol) && supportedHosts.includes(host) && (isShortLink || /(?:reel|reels|watch|share)/i.test(url.pathname));
+    return ['http:', 'https:'].includes(url.protocol) && supportedHosts.includes(host) && (isShortLink || /(?:reel|reels|watch|share|videos|video\.php)/i.test(url.pathname));
   } catch {
     return false;
   }
@@ -66,6 +67,10 @@ function shortLabel(url) {
 function setFormMessage(message, kind = '') {
   formMessage.textContent = message;
   formMessage.className = `form-message ${kind}`;
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
 function renderQueue() {
@@ -98,25 +103,64 @@ function renderQueue() {
   });
 }
 
-function escapeHtml(value) {
-  return value.replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+function ensureFacebookSdk() {
+  if (window.FB?.XFBML) return Promise.resolve(window.FB);
+  if (sdkPromise) return sdkPromise;
+
+  sdkPromise = new Promise((resolve, reject) => {
+    const previousInit = window.fbAsyncInit;
+    window.fbAsyncInit = () => {
+      previousInit?.();
+      if (window.FB) resolve(window.FB);
+      else reject(new Error('Facebook SDK tidak tersedia.'));
+    };
+
+    const existing = document.querySelector('#facebook-jssdk');
+    if (existing) return;
+
+    const script = document.createElement('script');
+    script.id = 'facebook-jssdk';
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = 'anonymous';
+    script.src = 'https://connect.facebook.net/id_ID/sdk.js';
+    script.onerror = () => reject(new Error('Facebook SDK gagal dimuat.'));
+    document.head.appendChild(script);
+  });
+
+  return sdkPromise;
 }
 
-function buildEmbedUrl(url, autoplay = true) {
-  const params = new URLSearchParams({
-    href: url,
-    show_text: 'false',
-    autoplay: autoplay ? 'true' : 'false',
-    mute: autoplay ? 'true' : 'false',
-    width: '500'
-  });
-  return `https://www.facebook.com/plugins/video.php?${params.toString()}`;
+function showEmbedFallback(url) {
+  player.innerHTML = `<div class="embed-fallback"><strong>Video tidak bisa di-embed</strong><span>Pastikan Reel bersifat publik dan pemiliknya mengizinkan embed.</span><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Buka Reel di Facebook ↗</a></div>`;
+  playerStatus.textContent = 'Facebook menolak embed untuk URL ini.';
+  playerLoading.hidden = true;
+}
+
+function renderFacebookEmbed(url, autoplay) {
+  player.innerHTML = `<div class="fb-xfbml-parse-ignore"><a href="${escapeHtml(url)}" target="_blank" rel="noopener">Buka Reel di Facebook</a></div>`;
+  player.className = 'fb-video';
+  player.dataset.href = url;
+  player.dataset.width = '500';
+  player.dataset.allowfullscreen = 'true';
+  player.dataset.showText = 'false';
+  player.dataset.autoplay = autoplay ? 'true' : 'false';
+  player.hidden = false;
+
+  ensureFacebookSdk().then((FB) => {
+    FB.XFBML.parse(player);
+    window.setTimeout(() => {
+      playerLoading.hidden = true;
+      playerStatus.textContent = 'Embed resmi siap. Jika kosong, Reel ini tidak publik atau tidak mengizinkan embed.';
+    }, 1800);
+  }).catch(() => showEmbedFallback(url));
 }
 
 function loadActive({ autoplay = true } = {}) {
   if (activeIndex < 0 || !queue[activeIndex]) {
     player.hidden = true;
     playerEmpty.hidden = false;
+    playerLoading.hidden = true;
     playButton.disabled = true;
     nowPlayingLabel.textContent = 'Belum ada Reel';
     playerStatus.textContent = 'Tambahkan Reel untuk mulai.';
@@ -131,10 +175,9 @@ function loadActive({ autoplay = true } = {}) {
   playButton.disabled = false;
   playLabel.textContent = autoplay ? 'Coba autoplay' : 'Muat ulang';
   nowPlayingLabel.textContent = shortLabel(active.url);
-  playerStatus.textContent = autoplay ? 'Meminta autoplay muted…' : 'Embed dihentikan. Tekan tombol untuk memuat lagi.';
-  player.src = buildEmbedUrl(active.url, autoplay);
+  playerStatus.textContent = 'Memuat Facebook SDK dan embed resmi…';
+  renderFacebookEmbed(active.url, autoplay);
   renderQueue();
-  window.setTimeout(() => { playerLoading.hidden = true; }, 1600);
 }
 
 function selectItem(index) {
@@ -202,20 +245,15 @@ nextButton.addEventListener('click', () => move(1));
 playButton.addEventListener('click', () => {
   if (activeIndex < 0) return;
   if (autoplayEnabled) {
-    player.src = 'about:blank';
+    player.innerHTML = '';
     player.hidden = true;
     playerLoading.hidden = true;
-    playerStatus.textContent = 'Embed dihentikan. Tekan tombol untuk mencoba autoplay lagi.';
+    playerStatus.textContent = 'Embed dihentikan. Tekan tombol untuk mencoba lagi.';
     playLabel.textContent = 'Coba autoplay';
     autoplayEnabled = false;
   } else {
     loadActive({ autoplay: true });
   }
-});
-
-player.addEventListener('load', () => {
-  playerLoading.hidden = true;
-  playerStatus.textContent = 'Embed siap — autoplay mungkin memerlukan izin browser atau interaksi.';
 });
 
 document.addEventListener('keydown', (event) => {
