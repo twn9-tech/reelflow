@@ -18,11 +18,11 @@ const nextButton = document.querySelector('#next-button');
 const playButton = document.querySelector('#play-button');
 const playLabel = document.querySelector('#play-label');
 const helpDialog = document.querySelector('#help-dialog');
+const resolverUrl = window.REELFLOW_CONFIG?.resolverUrl?.trim() || '';
 
 let queue = readQueue();
 let activeIndex = queue.length ? 0 : -1;
 let autoplayEnabled = true;
-let sdkPromise;
 
 function readQueue() {
   try {
@@ -139,9 +139,20 @@ function selectItem(index) {
   loadActive({ autoplay: true });
 }
 
-function addItem(value) {
+async function resolveInputUrl(value) {
+  const cleaned = cleanUrl(value);
+  if (!resolverUrl || !/\/share\/r\//i.test(new URL(cleaned).pathname)) return cleaned;
+
+  setFormMessage('Mengubah link share Facebook…', 'success');
+  const response = await fetch(`${resolverUrl}?url=${encodeURIComponent(cleaned)}`);
+  const data = await response.json();
+  if (!response.ok || !data.ok || !data.url) throw new Error(data.error || 'Resolver gagal mengubah URL.');
+  return data.url;
+}
+
+async function addItem(value) {
   let url;
-  try { url = cleanUrl(value); } catch { setFormMessage('Tautan tidak dapat dibaca.'); return; }
+  try { url = await resolveInputUrl(value); } catch (error) { setFormMessage(error.message || 'Tautan tidak dapat dibaca.'); return; }
   if (/\/share\/r\//i.test(url)) {
     setFormMessage('Link share belum bisa di-embed. Buka link di Facebook, lalu salin URL akhir yang berbentuk /reel/…');
     return;
