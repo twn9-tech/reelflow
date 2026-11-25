@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101110" />
+    <meta name="description" content="ReelFlow — pemutar Reel Facebook berbasis embed resmi dengan antrean sederhana." />
+    <title>ReelFlow — Facebook Reel player</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="ReelFlow home">
+          <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+          <span>Reel<span>Flow</span></span>
+        </a>
+        <div class="topbar-note"><span class="live-dot"></span> embed resmi · tanpa download</div>
+      </header>
+
+      <main class="page-grid">
+        <section class="hero-column">
+          <div class="eyebrow"><span>01</span> YOUR REEL QUEUE</div>
+          <h1>Putar lebih rapi.<br /><em>Scroll lebih santai.</em></h1>
+          <p class="lede">Tempel tautan Reel Facebook publik, lalu biarkan ReelFlow menyiapkan antrean putar di satu ruang yang lebih tenang.</p>
+
+          <form id="reel-form" class="add-form">
+            <label for="reel-url">Tautan Reel Facebook</label>
+            <div class="input-row">
+              <input id="reel-url" name="reel-url" type="url" inputmode="url" placeholder="https://www.facebook.com/reel/..." autocomplete="off" required />
+              <button type="submit" class="primary-button">Tambahkan <span aria-hidden="true">↗</span></button>
+            </div>
+            <p id="form-message" class="form-message" role="status"></p>
+          </form>
+
+          <div class="trust-strip">
+            <div class="trust-item"><span class="trust-icon">◌</span><span><strong>Embed resmi</strong><small>URL tetap di Facebook</small></span></div>
+            <div class="trust-item"><span class="trust-icon">◒</span><span><strong>Autoplay muted</strong><small>Mencoba sesuai izin browser</small></span></div>
+            <div class="trust-item"><span class="trust-icon">⌁</span><span><strong>Tersimpan lokal</strong><small>Antrean di perangkatmu</small></span></div>
+          </div>
+        </section>
+
+        <section class="player-column" aria-label="Pemutar Reel aktif">
+          <div class="player-topline">
+            <div><span class="eyebrow"><span>NOW PLAYING</span></span><p id="now-playing-label" class="now-playing-label">Belum ada Reel</p></div>
+            <span id="queue-count" class="queue-count">0 ITEM</span>
+          </div>
+
+          <div class="player-frame" id="player-frame">
+            <div class="player-empty" id="player-empty">
+              <div class="empty-orbit"><span></span><span></span><span></span></div>
+              <p>Antreanmu masih kosong</p>
+              <small>Tambahkan link Reel di sebelah kiri untuk memulai.</small>
+            </div>
+            <iframe id="facebook-player" title="Facebook Reel player" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+            <div id="player-loading" class="player-loading" hidden><span class="spinner"></span><span>Menyiapkan embed resmi…</span></div>
+          </div>
+
+          <div class="player-controls">
+            <button id="previous-button" class="icon-button" type="button" aria-label="Reel sebelumnya" title="Sebelumnya">←</button>
+            <button id="play-button" class="play-button" type="button" disabled><span class="play-symbol">▶</span><span id="play-label">Coba autoplay</span></button>
+            <button id="next-button" class="icon-button" type="button" aria-label="Reel berikutnya" title="Berikutnya">→</button>
+          </div>
+          <div id="player-status" class="player-status" role="status">Tambahkan Reel untuk mulai.</div>
+          <p class="player-disclaimer">Kontrol video di dalam embed dikelola Facebook. Tombol di atas memuat ulang embed dengan mode autoplay atau menghentikan pemuatannya.</p>
+        </section>
+
+        <aside class="queue-column" aria-label="Antrean Reel">
+          <div class="queue-header">
+            <div><div class="eyebrow"><span>02</span> UP NEXT</div><h2>Antrean Reel</h2></div>
+            <button id="clear-button" type="button" class="text-button" disabled>Bersihkan</button>
+          </div>
+          <div id="queue-list" class="queue-list">
+            <div class="queue-placeholder">Link yang kamu tambahkan akan muncul di sini.</div>
+          </div>
+          <div class="queue-footer"><span id="queue-total">0 reel</span><span class="keyboard-hint">↑ ↓ untuk pindah</span></div>
+        </aside>
+      </main>
+
+      <footer class="footer"><span>ReelFlow / 2026</span><span>Facebook dan Reel adalah merek dagang pemiliknya.</span><button id="help-button" type="button" class="text-button">Tentang autoplay ↗</button></footer>
+    </div>
+    <dialog id="help-dialog" class="help-dialog">
+      <button id="close-help" class="dialog-close" type="button" aria-label="Tutup">×</button>
+      <div class="eyebrow"><span>NOTE</span> BROWSER BEHAVIOUR</div>
+      <h2>Autoplay punya aturan sendiri.</h2>
+      <p>ReelFlow memakai embed resmi Facebook dan mengirim permintaan autoplay muted. Browser biasanya mengizinkan video tanpa suara, tetapi Facebook atau pengaturan perangkat tetap dapat menolak autoplay.</p>
+      <p>Jika tidak berjalan otomatis, tekan <strong>Coba autoplay</strong> atau gunakan kontrol di dalam embed. Reel privat, link yang tidak dapat di-embed, dan pembatasan login Facebook tidak bisa diperbaiki dari halaman ini.</p>
+      <button id="dialog-ok" class="primary-button" type="button">Mengerti</button>
+    </dialog>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
