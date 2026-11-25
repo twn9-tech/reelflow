@@ -26,7 +26,6 @@ if ('serviceWorker' in navigator) {
 
 let queue = readQueue();
 let activeIndex = queue.length ? 0 : -1;
-let autoplayEnabled = true;
 
 function readQueue() {
   try {
@@ -125,12 +124,11 @@ function loadActive({ autoplay = true } = {}) {
   }
 
   const active = queue[activeIndex];
-  autoplayEnabled = autoplay;
   playerLoading.hidden = false;
   playerEmpty.hidden = true;
   player.hidden = false;
   playButton.disabled = false;
-  playLabel.textContent = autoplay ? 'Coba autoplay' : 'Muat ulang';
+  playLabel.textContent = autoplay ? 'Coba putar' : 'Muat ulang';
   nowPlayingLabel.textContent = shortLabel(active.url);
   playerStatus.textContent = 'Memuat Facebook SDK dan embed resmi…';
   renderFacebookEmbed(active.url, autoplay);
@@ -216,21 +214,12 @@ previousButton.addEventListener('click', () => move(-1));
 nextButton.addEventListener('click', () => move(1));
 playButton.addEventListener('click', () => {
   if (activeIndex < 0) return;
-  if (autoplayEnabled) {
-    player.src = 'about:blank';
-    player.hidden = true;
-    playerLoading.hidden = true;
-    playerStatus.textContent = 'Embed dihentikan. Tekan tombol untuk mencoba lagi.';
-    playLabel.textContent = 'Coba autoplay';
-    autoplayEnabled = false;
-  } else {
-    loadActive({ autoplay: true });
-  }
+  loadActive({ autoplay: true });
 });
 
 player.addEventListener('load', () => {
   playerLoading.hidden = true;
-  playerStatus.textContent = 'Embed resmi siap. Tekan play jika autoplay diblokir browser.';
+  playerStatus.textContent = 'Jika Reel belum bergerak, ketuk Coba putar. Autoplay bisa dibatasi perangkat.';
 });
 
 document.addEventListener('keydown', (event) => {
