@@ -1,4 +1,4 @@
-const CACHE_NAME = 'reelflow-shell-v3';
+const CACHE_NAME = 'reelflow-shell-v4';
 const SHELL = [
   './',
   './index.html',

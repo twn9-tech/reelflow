@@ -16,6 +16,8 @@ const nowPlayingLabel = document.querySelector('#now-playing-label');
 const previousButton = document.querySelector('#previous-button');
 const nextButton = document.querySelector('#next-button');
 const playButton = document.querySelector('#play-button');
+const stopButton = document.querySelector('#stop-button');
+const screenPlayOverlay = document.querySelector('#screen-play-overlay');
 const playLabel = document.querySelector('#play-label');
 const helpDialog = document.querySelector('#help-dialog');
 const resolverUrl = window.REELFLOW_CONFIG?.resolverUrl?.trim() || '';
@@ -26,6 +28,12 @@ if ('serviceWorker' in navigator) {
 
 let queue = readQueue();
 let activeIndex = queue.length ? 0 : -1;
+let facebookSdkPromise = null;
+let facebookSdkInitialized = false;
+let facebookPlayerInstance = null;
+let activePlayerId = '';
+let playerSequence = 0;
+let autoplayRequested = true;
 
 function readQueue() {
   try {
@@ -106,31 +114,162 @@ function renderQueue() {
   });
 }
 
+function startPlayback() {
+  if (activeIndex < 0) return;
+  if (!facebookPlayerInstance) {
+    playerStatus.textContent = 'Tunggu player siap, lalu ketuk tombol Play atau area video.';
+    return;
+  }
+  try {
+    facebookPlayerInstance.mute();
+    facebookPlayerInstance.play();
+    playerStatus.textContent = 'Memulai Reel…';
+  } catch {
+    playerStatus.textContent = 'Belum mulai? Ketuk lagi area video atau tombol Play.';
+  }
+}
+
+function onFacebookXfbmlReady(message) {
+  if (message.type !== 'video' || message.id !== activePlayerId) return;
+
+  facebookPlayerInstance = message.instance;
+  playButton.disabled = false;
+  stopButton.disabled = false;
+  screenPlayOverlay.hidden = false;
+  playLabel.textContent = 'Play';
+  playerLoading.hidden = true;
+  playerStatus.textContent = 'Embed siap. Ketuk Play jika video belum berjalan.';
+
+  facebookPlayerInstance.subscribe('startedPlaying', () => {
+    playerLoading.hidden = true;
+    screenPlayOverlay.hidden = true;
+    playerStatus.textContent = 'Sedang memutar Reel.';
+    playLabel.textContent = 'Play';
+  });
+  facebookPlayerInstance.subscribe('paused', () => {
+    screenPlayOverlay.hidden = false;
+    playerStatus.textContent = 'Reel dijeda. Ketuk Play untuk melanjutkan.';
+    playLabel.textContent = 'Play';
+  });
+  facebookPlayerInstance.subscribe('finishedPlaying', () => {
+    if (queue.length > 1) {
+      move(1);
+    } else {
+      playerStatus.textContent = 'Reel selesai.';
+      playLabel.textContent = 'Play';
+    }
+  });
+  facebookPlayerInstance.subscribe('error', () => {
+    playerStatus.textContent = 'Facebook tidak dapat memutar Reel ini. Coba buka Reel langsung di Facebook.';
+  });
+
+  if (autoplayRequested) {
+    try {
+      facebookPlayerInstance.mute();
+      facebookPlayerInstance.play();
+    } catch {
+      playerStatus.textContent = 'Ketuk Play untuk memulai video.';
+    }
+  }
+}
+
+function initializeFacebookSdk() {
+  if (facebookSdkInitialized) return;
+  window.FB.init({ xfbml: false, version: 'v22.0' });
+  window.FB.Event.subscribe('xfbml.ready', onFacebookXfbmlReady);
+  facebookSdkInitialized = true;
+}
+
+function ensureFacebookSdk() {
+  if (window.FB?.XFBML) {
+    initializeFacebookSdk();
+    return Promise.resolve(window.FB);
+  }
+  if (facebookSdkPromise) return facebookSdkPromise;
+
+  facebookSdkPromise = new Promise((resolve, reject) => {
+    window.fbAsyncInit = () => {
+      try {
+        initializeFacebookSdk();
+        resolve(window.FB);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://connect.facebook.net/en_US/sdk.js';
+    script.async = true;
+    script.defer = true;
+    script.dataset.reelflowFacebookSdk = 'true';
+    script.onerror = () => reject(new Error('Facebook SDK tidak dapat dimuat.'));
+    document.head.appendChild(script);
+  });
+
+  return facebookSdkPromise;
+}
+
 function renderFacebookEmbed(url, autoplay) {
-  const params = new URLSearchParams({ href: url, show_text: 'false', autoplay: autoplay ? 'true' : 'false', width: '500' });
-  player.src = `https://www.facebook.com/plugins/video.php?${params.toString()}`;
+  if (facebookPlayerInstance) {
+    try { facebookPlayerInstance.pause(); } catch {}
+  }
+  facebookPlayerInstance = null;
+  autoplayRequested = autoplay;
+  activePlayerId = `reelflow-facebook-player-${++playerSequence}`;
+  const playerId = activePlayerId;
+
+  player.replaceChildren();
+  const video = document.createElement('div');
+  video.id = playerId;
+  video.className = 'fb-video';
+  video.dataset.href = url;
+  video.dataset.width = '500';
+  video.dataset.showText = 'false';
+  video.dataset.allowFullscreen = 'true';
+  video.dataset.autoplay = autoplay ? 'true' : 'false';
+  player.appendChild(video);
   player.hidden = false;
+
+  ensureFacebookSdk()
+    .then((facebook) => {
+      if (playerId !== activePlayerId) return;
+      facebook.XFBML.parse(player);
+    })
+    .catch(() => {
+      if (playerId !== activePlayerId) return;
+      playerLoading.hidden = true;
+      playButton.disabled = false;
+      stopButton.disabled = true;
+      playerStatus.textContent = 'Player Facebook gagal dimuat. Coba buka Reel langsung di Facebook.';
+    });
 }
 
 function loadActive({ autoplay = true } = {}) {
   if (activeIndex < 0 || !queue[activeIndex]) {
+    activePlayerId = '';
+    facebookPlayerInstance = null;
+    screenPlayOverlay.hidden = true;
+    player.replaceChildren();
     player.hidden = true;
     playerEmpty.hidden = false;
     playerLoading.hidden = true;
     playButton.disabled = true;
+    stopButton.disabled = true;
     nowPlayingLabel.textContent = 'Belum ada Reel';
     playerStatus.textContent = 'Tambahkan Reel untuk mulai.';
     return;
   }
 
   const active = queue[activeIndex];
+  screenPlayOverlay.hidden = true;
   playerLoading.hidden = false;
   playerEmpty.hidden = true;
   player.hidden = false;
-  playButton.disabled = false;
-  playLabel.textContent = autoplay ? 'Coba putar' : 'Muat ulang';
+  playButton.disabled = true;
+  stopButton.disabled = true;
+  playLabel.textContent = 'Menyiapkan…';
   nowPlayingLabel.textContent = shortLabel(active.url);
-  playerStatus.textContent = 'Memuat Facebook SDK dan embed resmi…';
+  playerStatus.textContent = 'Memuat player Facebook resmi…';
   renderFacebookEmbed(active.url, autoplay);
   renderQueue();
 }
@@ -149,6 +288,9 @@ async function resolveInputUrl(value) {
   const response = await fetch(`${resolverUrl}?url=${encodeURIComponent(cleaned)}`);
   const data = await response.json();
   if (!response.ok || !data.ok || !data.url) throw new Error(data.error || 'Resolver gagal mengubah URL.');
+  if (!data.isReel || !/\/(reel|reels)\//i.test(new URL(data.url).pathname)) {
+    throw new Error('Facebook mengarahkan link ini ke halaman login. Buka Reel di Facebook, lalu salin tautan akhir yang berisi /reel/ dan tempelkan di sini.');
+  }
   return data.url;
 }
 
@@ -156,7 +298,7 @@ async function addItem(value) {
   let url;
   try { url = await resolveInputUrl(value); } catch (error) { setFormMessage(error.message || 'Tautan tidak dapat dibaca.'); return; }
   if (/\/share\/r\//i.test(url)) {
-    setFormMessage('Link share belum bisa di-embed. Buka link di Facebook, lalu salin URL akhir yang berbentuk /reel/…');
+    setFormMessage('Link share belum dapat diubah. Buka Reel di Facebook lalu salin URL yang berbentuk /reel/…');
     return;
   }
   if (!isFacebookUrl(url)) {
@@ -212,14 +354,19 @@ clearButton.addEventListener('click', () => {
 
 previousButton.addEventListener('click', () => move(-1));
 nextButton.addEventListener('click', () => move(1));
-playButton.addEventListener('click', () => {
-  if (activeIndex < 0) return;
-  loadActive({ autoplay: true });
-});
+playButton.addEventListener('click', startPlayback);
+screenPlayOverlay.addEventListener('click', startPlayback);
 
-player.addEventListener('load', () => {
-  playerLoading.hidden = true;
-  playerStatus.textContent = 'Jika Reel belum bergerak, ketuk Coba putar. Autoplay bisa dibatasi perangkat.';
+stopButton.addEventListener('click', () => {
+  if (!facebookPlayerInstance) return;
+  try {
+    facebookPlayerInstance.pause();
+    facebookPlayerInstance.seek(0);
+    playerStatus.textContent = 'Reel dihentikan dan dikembalikan ke awal.';
+    playLabel.textContent = 'Play';
+  } catch {
+    playerStatus.textContent = 'Facebook belum siap menghentikan video.';
+  }
 });
 
 document.addEventListener('keydown', (event) => {

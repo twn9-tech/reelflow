@@ -58,13 +58,18 @@
               <p>Antreanmu masih kosong</p>
               <small>Tambahkan link Reel di sebelah kiri untuk memulai.</small>
             </div>
-            <iframe id="facebook-player" title="Facebook Reel player" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" hidden></iframe>
+            <div id="facebook-player" aria-label="Facebook Reel player" hidden></div>
+            <button id="screen-play-overlay" class="screen-play-overlay" type="button" aria-label="Ketuk layar untuk memutar Reel" hidden>
+              <span class="screen-play-glyph" aria-hidden="true">▶</span>
+              <span>Ketuk layar untuk memutar</span>
+            </button>
             <div id="player-loading" class="player-loading" hidden><span class="spinner"></span><span>Menyiapkan embed resmi…</span></div>
           </div>
 
           <div class="player-controls">
             <button id="previous-button" class="icon-button" type="button" aria-label="Reel sebelumnya" title="Sebelumnya">←</button>
-            <button id="play-button" class="play-button" type="button" disabled><span class="play-symbol">▶</span><span id="play-label">Coba putar</span></button>
+            <button id="play-button" class="play-button" type="button" disabled><span class="play-symbol">▶</span><span id="play-label">Play</span></button>
+            <button id="stop-button" class="play-button stop-button" type="button" disabled><span class="play-symbol">■</span><span>Stop</span></button>
             <button id="next-button" class="icon-button" type="button" aria-label="Reel berikutnya" title="Berikutnya">→</button>
           </div>
           <div id="player-status" class="player-status" role="status">Tambahkan Reel untuk mulai.</div>
@@ -90,7 +95,7 @@
       <div class="eyebrow"><span>NOTE</span> BROWSER BEHAVIOUR</div>
       <h2>Autoplay punya aturan sendiri.</h2>
       <p>ReelFlow mencoba autoplay tanpa suara. Facebook tidak menerapkan autoplay embed pada perangkat mobile, jadi pemutaran otomatis tidak selalu tersedia di Android.</p>
-      <p>Jika Reel belum berjalan, ketuk <strong>Coba putar</strong> atau gunakan kontrol di dalam embed. Reel privat, link yang tidak dapat di-embed, dan pembatasan login Facebook tidak bisa diperbaiki dari halaman ini.</p>
+      <p>Gunakan tombol <strong>Play</strong> atau ketuk area video jika tombol Play tidak merespons. <strong>Stop</strong> menghentikan video dan mengembalikannya ke awal.</p>
       <button id="dialog-ok" class="primary-button" type="button">Mengerti</button>
     </dialog>
     <script src="./config.js"></script>
